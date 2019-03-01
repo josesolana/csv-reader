@@ -17,4 +17,6 @@ const (
 	Workers = 20
 	// Buff Workers's buffer channel
 	Buff = 5
+	// BatchSizeRow Batch to no overload
+	BatchSizeRow = 100
 )

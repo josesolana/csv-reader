@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/josesolana/csv-reader/cmd/csvreader/database"
+	"github.com/josesolana/csv-reader/cmd/database"
 	"github.com/josesolana/csv-reader/constants"
 )
 
@@ -44,19 +44,17 @@ func NewProcessor() *Processor {
 //
 // - Send info to CrmIntegrator
 func (p *Processor) Migrate(name string) error {
+	defer p.finish()
 	reader, err := p.openCsv(name)
 	if err != nil {
 		return err
 	}
 	err = p.saveIntoDb(reader)
-	p.csvFile.Close()
-	p.finish()
 	return err
 }
 
 func (p *Processor) saveIntoDb(reader *csv.Reader) error {
 	var line []string
-	var w, id int
 	var err error
 	for {
 		select {
@@ -69,14 +67,7 @@ func (p *Processor) saveIntoDb(reader *csv.Reader) error {
 				log.Println("CSV file has been complete")
 				return nil
 			case nil:
-				// ID is used to load balance jobs between workers.
-				if id, err = strconv.Atoi(line[0]); err == nil {
-					w = id % constants.Workers
-					p.job.Add(1)
-					p.poolWorker[w] <- line
-				} else {
-					log.Printf("Skipping Line: Cannot Parse an ID")
-				}
+				p.balanceLoad(line)
 			default:
 				log.Printf("Skipped Line. Error: %s", err.Error())
 			}
@@ -155,10 +146,24 @@ func (p *Processor) processRow(ch *chan []string, job, runningWorkers *sync.Wait
 }
 
 func (p *Processor) finish() {
+	p.csvFile.Close()
+	p.db.Close()
+
 	p.job.Wait()
 	for _, ch := range p.poolWorker {
 		close(ch)
 	}
 	p.runningWorkers.Wait()
 	log.Printf("Every worker's channels has been closed")
+}
+
+func (p *Processor) balanceLoad(line []string) {
+	// ID is used to load balance jobs between workers.
+	if id, err := strconv.Atoi(line[0]); err == nil {
+		w := id % constants.Workers
+		p.job.Add(1)
+		p.poolWorker[w] <- line
+	} else {
+		log.Printf("Skipping Line: Cannot Parse an ID")
+	}
 }

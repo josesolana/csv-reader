@@ -6,6 +6,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/josesolana/csv-reader/cmd/models"
 	c "github.com/josesolana/csv-reader/constants"
 )
 
@@ -17,6 +18,7 @@ var (
 type Db struct {
 	db     *sql.DB
 	insert *sql.Stmt
+	read   *sql.Stmt
 }
 
 // NewDb Set up the environment.
@@ -26,18 +28,37 @@ func NewDb() Db {
 		log.Fatalf("Couldn't connect to Database. Error: %s", err.Error())
 	}
 
+	err = db.Ping()
+	if err != nil {
+		log.Fatalf("Could not establish a connection with the database. Error: %s", err.Error())
+	}
+
 	once.Do(func() { createTable(db) })
 
+	//TODO: Check amount of column to add # values -> $1, $2...
 	insert, err := db.Prepare(`
-		INSERT INTO customers (id, first_name, last_name, email, phone)
+		INSERT INTO ` + models.CustomerTableName + ` (` + models.CustomerColumns + `)
 		VALUES ($1, $2, $3, $4, $5)
 	`)
 	if err != nil {
 		log.Fatalf("Couldn't connect to Database. Error: %s", err.Error())
 	}
+
+	read, err := db.Prepare(`
+		Select (` + models.CustomerColumns + `)
+		FROM ` + models.CustomerTableName + `
+		ORDER BY ID
+		LIMIT $1
+		OFFSET $2
+		`)
+	if err != nil {
+		log.Fatalf("Couldn't connect to Database. Error: %s", err.Error())
+	}
+
 	return Db{
 		db:     db,
 		insert: insert,
+		read:   read,
 	}
 }
 
@@ -51,22 +72,28 @@ func (d *Db) Insert(row ...string) error {
 	return err
 }
 
+// Reads from DB
+func (d *Db) Read(limit, offset int64) (*sql.Rows, error) {
+	return d.insert.Query(limit, offset)
+}
+
 //Close returns the connection to the connection pool.
 func (d *Db) Close() {
 	d.insert.Close()
 	d.db.Close()
 }
 
+// Just to make easy to work in this Quiz.
 func createTable(db *sql.DB) {
 
-	_, err := db.Exec(`DROP TABLE IF EXISTS customers`)
+	_, err := db.Exec(`DROP TABLE IF EXISTS ` + models.CustomerTableName + ``)
 
 	if err != nil {
-		log.Fatalf("Cannot drop customer table. Error: %s", err.Error())
+		log.Fatalf("Cannot drop "+models.CustomerTableName+"table. Error: %s", err.Error())
 		return
 	}
 
-	_, err = db.Exec(`CREATE TABLE customers (
+	_, err = db.Exec(`CREATE TABLE ` + models.CustomerTableName + ` (
 		id int,
 		first_name varchar(255),
 		last_name varchar(255),

@@ -2,12 +2,28 @@
 
 
 [[projects]]
-  digest = "1:0d64fafff39264132d1b50751a5699bdf9e885ff6083f3187b7deef8ccab906a"
-  name = "github.com/jszwec/csvutil"
+  digest = "1:f3d9bce4c80550c3f64cc88f013a1997d154728987f763036ec5b94ae24660e2"
+  name = "github.com/astaxie/beego"
+  packages = ["orm"]
+  pruneopts = "UT"
+  revision = "1b6edafc96ad27b6515fafeccd7339dda3e997b1"
+  version = "v1.11.1"
+
+[[projects]]
+  digest = "1:ec6f9bf5e274c833c911923c9193867f3f18788c461f76f05f62bb1510e0ae65"
+  name = "github.com/go-sql-driver/mysql"
   packages = ["."]
   pruneopts = "UT"
-  revision = "459861b905123825bd0412e151304689031f3c09"
-  version = "v1.2.1"
+  revision = "72cd26f257d44c1114970e19afddcd812016007e"
+  version = "v1.4.1"
+
+[[projects]]
+  digest = "1:b6bbd2f9e0724bd81890c8644259f920c6d61c08453978faff0bebd25f3e7d3e"
+  name = "github.com/jpillora/backoff"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8eab2debe79d12b7bd3d10653910df25fa9552ba"
+  version = "1.0.0"
 
 [[projects]]
   digest = "1:8ef506fc2bb9ced9b151dafa592d4046063d744c646c1bbe801982ce87e4bc24"
@@ -20,12 +36,29 @@
   revision = "4ded0e9383f75c197b3a2aaa6d590ac52df6fd79"
   version = "v1.0.0"
 
+[[projects]]
+  digest = "1:889006aa462c5522d9bf20504498cbd58ff294904acb9b5e501ad9787105bbd4"
+  name = "github.com/spiritclips/members-service-go"
+  packages = ["models"]
+  pruneopts = "UT"
+  revision = "885d8cad0235705e3d4dcc99baef602b5f5250dd"
+  version = "v2.0.5"
+
+[[projects]]
+  digest = "1:c25289f43ac4a68d88b02245742347c94f1e108c534dda442188015ff80669b3"
+  name = "google.golang.org/appengine"
+  packages = ["cloudsql"]
+  pruneopts = "UT"
+  revision = "e9657d882bb81064595ca3b56cbe2546bbabf7b1"
+  version = "v1.4.0"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/jszwec/csvutil",
+    "github.com/jpillora/backoff",
     "github.com/lib/pq",
+    "github.com/spiritclips/members-service-go/models",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

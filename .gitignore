@@ -14,3 +14,4 @@
 # Application dependencies
 /vendor
 cmd/csvreader/csvreader
+cmd/crmintegrator/crmintegrator
