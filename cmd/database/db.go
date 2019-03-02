@@ -4,15 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"sync"
 
 	"github.com/josesolana/csv-reader/cmd/models"
 	c "github.com/josesolana/csv-reader/constants"
 )
 
-var (
-	once sync.Once
-)
+// var once sync.Once
 
 // Db Database Handler & Wrapper
 type Db struct {
@@ -33,7 +30,7 @@ func NewDb() Db {
 		log.Fatalf("Could not establish a connection with the database. Error: %s", err.Error())
 	}
 
-	once.Do(func() { createTable(db) })
+	// once.Do(func() { createTable(db) })
 
 	//TODO: Check amount of column to add # values -> $1, $2...
 	insert, err := db.Prepare(`
@@ -45,12 +42,13 @@ func NewDb() Db {
 	}
 
 	read, err := db.Prepare(`
-		Select (` + models.CustomerColumns + `)
+		Select ` + models.CustomerColumns + `
 		FROM ` + models.CustomerTableName + `
 		ORDER BY ID
 		LIMIT $1
 		OFFSET $2
 		`)
+
 	if err != nil {
 		log.Fatalf("Couldn't connect to Database. Error: %s", err.Error())
 	}
@@ -74,7 +72,7 @@ func (d *Db) Insert(row ...string) error {
 
 // Reads from DB
 func (d *Db) Read(limit, offset int64) (*sql.Rows, error) {
-	return d.insert.Query(limit, offset)
+	return d.read.Query(limit, offset)
 }
 
 //Close returns the connection to the connection pool.
@@ -83,26 +81,25 @@ func (d *Db) Close() {
 	d.db.Close()
 }
 
-// Just to make easy to work in this Quiz.
-func createTable(db *sql.DB) {
+// createTable Just to make easy to work in this Quiz.
+// func createTable(db *sql.DB) {
 
-	_, err := db.Exec(`DROP TABLE IF EXISTS ` + models.CustomerTableName + ``)
+// 	_, err := db.Exec(`DROP TABLE IF EXISTS ` + models.CustomerTableName + ``)
 
-	if err != nil {
-		log.Fatalf("Cannot drop "+models.CustomerTableName+"table. Error: %s", err.Error())
-		return
-	}
+// 	if err != nil {
+// 		log.Fatalf("Cannot drop "+models.CustomerTableName+"table. Error: %s", err.Error())
+// 		return
+// 	}
 
-	_, err = db.Exec(`CREATE TABLE ` + models.CustomerTableName + ` (
-		id int,
-		first_name varchar(255),
-		last_name varchar(255),
-		email varchar(50),
-		phone varchar(50),
-		PRIMARY KEY (id))`)
+// 	_, err = db.Exec(`CREATE TABLE ` + models.CustomerTableName + ` (
+// 		id bigint PRIMARY KEY,
+// 		first_name varchar(255) NOT NULL,
+// 		last_name varchar(255) NOT NULL,
+// 		email varchar(50) NOT NULL,
+// 		phone varchar(50) NOT NULL)`)
 
-	if err != nil {
-		log.Fatalf("Cannot create the Customer Table. Error: %s", err.Error())
-	}
-	return
-}
+// 	if err != nil {
+// 		log.Fatalf("Cannot create the Customer Table. Error: %s", err.Error())
+// 	}
+// 	return
+// }

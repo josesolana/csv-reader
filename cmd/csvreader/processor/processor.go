@@ -147,13 +147,12 @@ func (p *Processor) processRow(ch *chan []string, job, runningWorkers *sync.Wait
 
 func (p *Processor) finish() {
 	p.csvFile.Close()
-	p.db.Close()
-
 	p.job.Wait()
 	for _, ch := range p.poolWorker {
 		close(ch)
 	}
 	p.runningWorkers.Wait()
+	p.db.Close()
 	log.Printf("Every worker's channels has been closed")
 }
 

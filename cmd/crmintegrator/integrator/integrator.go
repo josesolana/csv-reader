@@ -2,7 +2,6 @@ package integrator
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"math/rand"
 	"os"
@@ -19,27 +18,33 @@ import (
 
 // Integrator Reads from DB and send info to JSON CRM API
 type Integrator struct {
-	poolWorker          []chan models.Customer
-	runningWorkers, job *sync.WaitGroup
-	db                  database.Db
-	offSet              int64
+	poolWorker     []*worker
+	runningWorkers *sync.WaitGroup
+	db             database.Db
+	offSet         int64
+	runCh          *chan interface{}
 }
 
 // NewIntegrator Factory pattern
 func NewIntegrator() *Integrator {
 	i := &Integrator{
-		job:            new(sync.WaitGroup),
 		runningWorkers: new(sync.WaitGroup),
 		db:             database.NewDb(),
 		offSet:         0,
 	}
+	ch := make(chan interface{}, 1)
+	i.runCh = &ch
 	i.createPoolWorker()
 	return i
 }
 
 // Migrate Reads from DB and send info to JSON CRM API
-func (i *Integrator) Migrate(runCh *chan os.Signal) {
+func (i *Integrator) Migrate(close *chan os.Signal) {
 	var sleep time.Duration
+	var err error
+	var rows *sql.Rows
+	var newOffSet int64
+
 	backOff := &backoff.Backoff{
 		// Min value to retry, if DB is down(It starts at Min)
 		Min: 10 * time.Second,
@@ -51,78 +56,79 @@ func (i *Integrator) Migrate(runCh *chan os.Signal) {
 		Jitter: true,
 	}
 	rand.Seed(time.Now().UTC().UnixNano())
-
 	for {
 		select {
-		case s := <-*runCh:
-			log.Printf("Got signal: %s", s.String())
+		case s := <-*close:
+			log.Printf("Got signal: %s\n", s.String())
 			i.finish()
 			return
 		case <-time.After(sleep):
-			if rows, err := i.db.Read(constants.BatchSizeRow, i.offSet); err != nil {
+			if rows, err = i.db.Read(constants.BatchSizeRow, i.offSet); err != nil {
 				if err == orm.ErrNoRows {
-					log.Printf("No more Data. Waiting...")
+					log.Printf("No more Data. Waiting...\n")
 				} else {
-					log.Printf("Failed when connect to DB: %v", err)
+					log.Printf("Failed when connect to DB: %v\n", err)
 				}
 				sleep = backOff.Duration()
-				log.Printf("Sleeping by BackOff %v", sleep)
+				log.Printf("Sleeping by BackOff %v\n", sleep)
 			} else {
-				log.Printf("Processing %d rows", i.offSet)
-				i.balanceLoad(rows)
+				log.Printf("Processing with offset %d\n", i.offSet)
+				newOffSet, err = i.balanceLoad(rows)
+				if err != nil {
+					sleep = backOff.Duration()
+					log.Printf("Sleeping by BackOff %v\n", sleep)
+					break
+				}
+				if newOffSet < 0 {
+					sleep = backOff.Duration()
+					log.Println("Waiting for more Rows...")
+					log.Printf("Sleeping by BackOff %v\n", sleep)
+					break
+				}
+				i.offSet = newOffSet
 				sleep = 0
 			}
-		default:
-
 		}
 	}
 }
 
-func (i *Integrator) balanceLoad(rows *sql.Rows) error {
-	customer := models.Customer{}
+func (i *Integrator) balanceLoad(rows *sql.Rows) (int64, error) {
+	var w int64
+	customer := models.Customer{ID: -1}
+
 	for rows.Next() {
 		if err := rows.Scan(&customer.ID, &customer.FirstName, &customer.LastName, &customer.Email, &customer.Phone); err != nil {
-			return err
+			log.Printf("Cannot retrieve info from DB. Error: %s\n", err.Error())
+			return 0, err
 		}
-		w := customer.ID % constants.Workers
-		i.poolWorker[w] <- customer
+		w = customer.ID % constants.Workers
+		i.poolWorker[w].source <- customer
 	}
-	return nil
+	return customer.ID, nil
 }
 
-func (i *Integrator) processRow(ch *chan models.Customer, job, runningWorkers *sync.WaitGroup) {
-	//TODO: TO CRM It going to implement Exponential BackOff if Fails.
-	for row := range *ch {
-		job.Done()
-		fmt.Printf("ROW: %v", row)
-	}
-	runningWorkers.Done()
-}
-
-// createPoolWorker Create a channel's slice.
-// There are go routines as workers set constants.Workers.
+// createPoolWorker Create a workers's slice.
+// There are go routines as workers set in constants.Workers.
 // Workers are a channel to a function which do the job.
 func (i *Integrator) createPoolWorker() {
-	log.Printf("Starting %v Workers", constants.Workers)
+	log.Printf("Starting %v Workers\n", constants.Workers)
 	i.runningWorkers.Add(constants.Workers)
-
-	workers := make([]chan models.Customer, constants.Workers)
+	workers := make([]*worker, constants.Workers)
 	for index, _ := range workers {
-		w := make(chan models.Customer, constants.Buff)
-		workers[index] = w
-		go i.processRow(&w, i.job, i.runningWorkers)
+		w := worker{
+			source: make(chan models.Customer, constants.Buff),
+			quit:   i.runCh,
+		}
+		w.Start(i.runningWorkers)
+		workers[index] = &w
 	}
 
 	i.poolWorker = workers
 }
 
 func (i *Integrator) finish() {
+	close(*i.runCh)
 	i.db.Close()
-
-	i.job.Wait()
-	for _, ch := range i.poolWorker {
-		close(ch)
-	}
 	i.runningWorkers.Wait()
-	log.Printf("Every worker's channels has been closed")
+	log.Printf("Every worker's channels has been closed\n")
 }
