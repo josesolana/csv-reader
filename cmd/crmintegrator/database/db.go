@@ -6,13 +6,10 @@ import (
 	"log"
 	"os"
 	"strings"
-	"sync"
 
 	c "github.com/josesolana/csv-reader/constants"
 	"github.com/pkg/errors"
 )
-
-var once sync.Once
 
 // Db Database Handler & Wrapper
 type Db struct {
@@ -115,7 +112,10 @@ func (d *Db) Close() []error {
 		log.Println("Cannot Close DB Connection")
 		errs = append(errs, err)
 	}
-	return nil
+	if len(errs) > 0 {
+		return errs
+	}
+	return errs
 }
 
 func (d *Db) rollbackAndWrapErr(err error) error {
