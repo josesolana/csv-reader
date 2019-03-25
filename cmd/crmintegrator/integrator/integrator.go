@@ -161,7 +161,7 @@ func (i *Integrator) balanceLoad(rows *sql.Rows) error {
 					log.Printf("Cannot retrieve info from DB. Error: %s\n", err)
 					return err
 				}
-				w := *(vals[0]).(*int) % c.Workers
+				w := *(vals[c.IDPos]).(*int) % c.Workers
 				i.poolWorker[w].sourceCh <- vals
 				i.jobs.Add(1)
 			} else {

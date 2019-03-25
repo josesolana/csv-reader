@@ -12,7 +12,6 @@ type ProcessorTest struct {
 	suite.Suite
 	db         *testutils.MockDB
 	mockRow    *testutils.MockRows
-	mockReader *testutils.MockReader
 	processor  *Processor
 }
 
