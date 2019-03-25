@@ -1,0 +1,29 @@
+version: '3.1'
+
+services:
+
+  db:
+    image: postgres
+    restart: always
+    container_name: db_dev
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: customers_dev
+    volumes:
+      - ./postgresql/data/dev:/var/lib/postgresql/data
+
+  db_test:
+    image: postgres
+    restart: always
+    container_name: db_test
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: customers_test
+    volumes:
+      - ./postgresql/data/test:/var/lib/postgresql/data

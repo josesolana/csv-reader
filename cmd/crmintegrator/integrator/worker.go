@@ -4,16 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/josesolana/csv-reader/cmd/models"
-	"github.com/josesolana/csv-reader/constants"
-	"github.com/jpillora/backoff"
+	"github.com/josesolana/csv-reader/cmd/crmintegrator/database"
+	c "github.com/josesolana/csv-reader/constants"
 )
 
 func init() {
@@ -21,22 +19,30 @@ func init() {
 }
 
 type worker struct {
-	source chan models.Customer
-	quit   *chan interface{}
-	cancel context.CancelFunc
-	cx     context.Context
+	sourceCh chan []interface{}
+	quitCh   chan interface{}
+	errorCh  chan error
+	db       *database.DB
+	cancel   context.CancelFunc
+	cx       *context.Context
 }
 
-func (w *worker) Start(runningWorkers *sync.WaitGroup) {
+func (w *worker) Start(runningWorkers, jobs *sync.WaitGroup) {
 	cx, cancel := context.WithCancel(context.Background())
-	w.cx = cx
+	w.cx = &cx
 	w.cancel = cancel
+
 	go func() {
+		var err error
 		for {
 			select {
-			case customer := <-w.source:
-				w.makeRequest(&customer)
-			case <-*w.quit:
+			case vals := <-w.sourceCh:
+				err = w.makeRequest(vals)
+				jobs.Done()
+				if err != nil {
+					w.errorCh <- err
+				}
+			case <-w.quitCh:
 				w.cancel()
 				runningWorkers.Done()
 				return
@@ -45,69 +51,56 @@ func (w *worker) Start(runningWorkers *sync.WaitGroup) {
 	}()
 }
 
-func (w *worker) makeRequest(customer *models.Customer) {
-	var sleep time.Duration
-
-	backOff := &backoff.Backoff{
-		// Min value to retry, if Json Api is down(It starts at Min)
-		Min: 1 * time.Second,
-		// After every call to Duration() it is multiplied by Factor
-		Factor: 1.1,
-		// It is capped at Max
-		Max: 5 * time.Minute,
-		// Adds some randomization to the backoff durations.
-		Jitter: true,
-	}
-
+func (w *worker) makeRequest(vals []interface{}) error {
+	id := *vals[c.IDPos].(*int)
 	httpClient := http.Client{
-		Timeout: constants.TimeOut,
+		Timeout: c.TimeOut,
+	}
+	postReq, err := w.preparePostRequest(vals)
+
+	if err != nil {
+		log.Println("Fail creating POST request", err)
+		return (*w.db).IncreaseRetry(id)
 	}
 
-	for retry := 0; retry < constants.TotalRetry; retry++ {
-		select {
-		case <-time.After(sleep):
-			postReq, err := w.preparePostRequest(customer)
-			if err != nil {
-				sleep = backOff.Duration()
-				break
-			}
-			resp, err := httpClient.Do(postReq)
-			if err != nil {
-				sleep = backOff.Duration()
-				break
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode > http.StatusBadRequest {
-				sleep = backOff.Duration()
-				break
-			}
-
-			fmt.Println("Json Api Add Customer. ID: ", customer.ID)
-			return
-		}
+	resp, err := httpClient.Do(postReq)
+	if err != nil {
+		log.Println("Cannot make a request to JSON API")
+		return (*w.db).IncreaseRetry(id)
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode > http.StatusBadRequest {
+		log.Println("JSON API response a Bad Request")
+		return (*w.db).IncreaseRetry(id)
+	}
+
+	return (*w.db).SetAsProcessed(id)
 }
 
-func (w *worker) preparePostRequest(customer *models.Customer) (*http.Request, error) {
+func (w *worker) preparePostRequest(vals []interface{}) (*http.Request, error) {
 	var url string
-	body, err := json.Marshal(customer)
+
+	// Skipped those values whom has been added to handle row flow.
+	body, err := json.Marshal(vals[3:])
 	if err != nil {
-		log.Printf("Cannot serialize Customer. Skipping ID: %d. Error: %s\n", customer.ID, err)
+		log.Printf("Cannot serialize a row. ID: %d. Error: %s\n", vals[c.IDPos], err)
 		return nil, err
 	}
 
+	//Fail rate 60%
 	if rand.Intn(100) > 40 {
-		url = constants.CRMUrlFail
+		url = c.CRMUrlFail
 	} else {
-		url = constants.CRMUrl
+		url = c.CRMUrl
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	if err != nil {
-		log.Printf("Cannot make a POST request. Skipping ID: %d. Error: %s\n", customer.ID, err)
+		log.Printf("Cannot make a POST request. ID: %d. Error: %s\n", vals[c.IDPos], err)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(w.cx)
+	req = req.WithContext(*w.cx)
 	return req, nil
 }

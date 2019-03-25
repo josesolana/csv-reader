@@ -14,8 +14,12 @@ func main() {
 		log.Fatalf("Filename should be provided")
 	}
 
-	p := processor.NewProcessor()
-	if err := p.Migrate(os.Args[1]); err != nil {
-		log.Fatalf("Fatal Error: %s", err.Error())
+	p, err := processor.NewProcessor(os.Args[1])
+	if err != nil {
+		log.Fatalf("Fatal Error: %s\n", err)
+	}
+
+	if err := p.Migrate(); err != nil {
+		log.Fatalf("Fatal Error: %s\n", err)
 	}
 }
