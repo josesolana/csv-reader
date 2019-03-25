@@ -32,7 +32,7 @@ func NewFileHandler(name string) (Readable, error) {
 
 	reader := csv.NewReader(bufio.NewReader(file))
 	reader.FieldsPerRecord = 0
-	//reader.ReuseRecord = true //TODO: PROBARLO PUESTO
+
 
 	return &FileHandler{
 		file:   file,
