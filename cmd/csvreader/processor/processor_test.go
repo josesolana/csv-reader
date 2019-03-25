@@ -12,6 +12,7 @@ type ProcessorTest struct {
 	suite.Suite
 	db         *testutils.MockDB
 	mockRow    *testutils.MockRows
+	mockReader *testutils.MockReadable
 	processor  *Processor
 }
 
@@ -22,10 +23,10 @@ func TestProcessor(t *testing.T) {
 func (pt *ProcessorTest) SetupTest() {
 	pt.db = testutils.NewMockDB()
 	pt.mockRow = testutils.NewMockRows()
-	pt.mockReader = testutils.NewMockReader()
+	pt.mockReader = testutils.NewMockReadable()
 	pt.processor = NewProcessorWithValues(pt.mockReader, pt.db)
 }
 
 func (pt *ProcessorTest) Migrate() {
-	
+
 }

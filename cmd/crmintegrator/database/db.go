@@ -118,14 +118,6 @@ func (d *Db) Close() []error {
 	return errs
 }
 
-func (d *Db) rollbackAndWrapErr(err error) error {
-	rerr := d.tx.Rollback()
-	if rerr != nil && err != nil {
-		return errors.Wrap(err, rerr.Error())
-	}
-	return err
-}
-
 func (d *Db) createRead(name string) {
 	query := `
 	Select id, is_processed, retry, %s.*

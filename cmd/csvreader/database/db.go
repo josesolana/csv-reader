@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	c "github.com/josesolana/csv-reader/constants"
-	"github.com/pkg/errors"
 )
 
 var once sync.Once
@@ -19,7 +18,6 @@ var once sync.Once
 type Db struct {
 	db     *sql.DB
 	insert *sql.Stmt
-	tx     *sql.Tx
 }
 
 // NewDB Set up the environment.
@@ -80,14 +78,6 @@ func (d *Db) Close() error {
 		return err
 	}
 	return nil
-}
-
-func (d *Db) rollbackAndWrapErr(err error) error {
-	rerr := d.tx.Rollback()
-	if rerr != nil && err != nil {
-		return errors.Wrap(err, rerr.Error())
-	}
-	return err
 }
 
 func (d *Db) createInsert(name string, row []string) {

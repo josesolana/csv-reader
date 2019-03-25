@@ -43,6 +43,11 @@ func (d *MockDB) Close() error {
 	return d.Called().Error(0)
 }
 
-func (d *MockReadable) Read() error {
+func (d *MockReadable) Read() ([]string, error) {
+	args := d.Called()
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (d *MockReadable) Close() error {
 	return d.Called().Error(0)
 }
